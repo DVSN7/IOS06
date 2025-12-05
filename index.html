@@ -1256,6 +1256,207 @@ mediump float simplexNoise(mediump vec2 v, float time) {
             tS = createShader(vertexShader, fragmentShader);
         }
 
+        function resetIteration() {
+            // Generate new random seed
+            let chars = "0123456789abcdefghijklmnopqrstuvwsyz";
+            inscription_id = Array(64).fill(0).map(_=>chars[(Math.random()*chars.length)|0]).join('');
+            
+            // Recreate random generator with new seed
+            R = new Rnd(inscription_id);
+            
+            // Reset random values
+            nOX = R.I(0,2000);
+            nOY = R.I(0,2000);
+            nS = R.I(0,1000);
+            rSS = R.I(0,1000);
+            roA = R.I(0, 360);
+            cuP = R.I(0, 5);
+            
+            let teR = R.I(0, amV.length - 1);
+            let raA = amV[teR];
+            let seF = R.N(10.0, 0.000001);
+            bN = R.N(0.002, 0.005);
+            let baM = R.N(0.5, 2.0);
+            
+            // Reset colors
+            let isMonochrome = false;
+            let currentMonoPalette = null;
+            let useMutedColors = R.D() < 0.5;
+            
+            const MONO_PALETTES = {
+                HIGH_CONTRAST: {
+                    dark: [0.02, 0.02, 0.02],
+                    mid: [0.35, 0.35, 0.35],
+                    light: [0.85, 0.85, 0.85]
+                },
+                LOW_CONTRAST: {
+                    dark: [0.15, 0.15, 0.15],
+                    mid: [0.35, 0.35, 0.35],
+                    light: [0.55, 0.55, 0.55]
+                },
+                INFRARED: {
+                    dark: [0.05, 0.05, 0.05],
+                    mid: [0.3, 0.3, 0.3],
+                    light: [0.8, 0.8, 0.8]
+                },
+                SEPIA: {
+                    dark: [0.1, 0.08, 0.06],
+                    mid: [0.35, 0.3, 0.25],
+                    light: [0.7, 0.65, 0.6]
+                },
+                SPLIT_TONE: {
+                    dark: [0.1, 0.1, 0.15],
+                    mid: [0.3, 0.3, 0.35],
+                    light: [0.6, 0.55, 0.5]
+                },
+            };
+            
+            function caCD(color1, color2) {
+                const dr = color1[0] - color2[0];
+                const dg = color1[1] - color2[1];
+                const db = color1[2] - color2[2];
+                return Math.sqrt(dr * dr + dg * dg + db * db);
+            }
+            
+            function geRC(brightnessType = 'light', baseHue = null, existingColors = []) {
+                if (!isMonochrome && R.D() < 0.05) {
+                    isMonochrome = true;
+                    const paletteKeys = Object.keys(MONO_PALETTES);
+                    currentMonoPalette = MONO_PALETTES[paletteKeys[Math.floor(R.D() * paletteKeys.length)]];
+                }
+                
+                if (isMonochrome) {
+                    return {
+                        color: currentMonoPalette[brightnessType.toLowerCase()],
+                        hue: 0
+                    };
+                }
+                
+                const miCD = 0.3;
+                let at = 0;
+                const maA = 10;
+                
+                while (at < maA) {
+                    let h;
+                    if (brightnessType === 'mid' && baseHue !== null) {
+                        h = (baseHue + 0.5) % 1.0;
+                    } else {
+                        h = R.D();
+                    }
+                    
+                    let s;
+                    if (useMutedColors) {
+                        s = R.N(0.3, 0.5);
+                    } else {
+                        s = R.N(0.7, 0.75);
+                    }
+                    
+                    let v;
+                    if (useMutedColors) {
+                        switch(brightnessType) {
+                            case 'dark':
+                                v = R.N(0.2, 0.35);
+                                break;
+                            case 'mid':
+                                v = R.N(0.45, 0.6);
+                                break;
+                            case 'light':
+                                v = R.N(0.7, 0.85);
+                                break;
+                        }
+                    } else {
+                        switch(brightnessType) {
+                            case 'dark':
+                                v = R.N(0.15, 0.3);
+                                break;
+                            case 'mid':
+                                v = R.N(0.5, 0.65);
+                                break;
+                            case 'light':
+                                v = R.N(0.85, 1.0);
+                                break;
+                        }
+                    }
+                    
+                    let i = Math.floor(h * 6);
+                    let f = h * 6 - i;
+                    let p = v * (1 - s);
+                    let q = v * (1 - f * s);
+                    let t = v * (1 - (1 - f) * s);
+                    
+                    let r, g, b;
+                    switch (i % 6) {
+                        case 0: r = v, g = t, b = p; break;
+                        case 1: r = q, g = v, b = p; break;
+                        case 2: r = p, g = v, b = t; break;
+                        case 3: r = p, g = q, b = v; break;
+                        case 4: r = t, g = p, b = v; break;
+                        case 5: r = v, g = p, b = q; break;
+                    }
+                    
+                    const newColor = [r, g, b];
+                    
+                    let diC = true;
+                    for (const existingColor of existingColors) {
+                        if (caCD(newColor, existingColor) < miCD) {
+                            diC = false;
+                            break;
+                        }
+                    }
+                    
+                    if (diC || at === maA - 1) {
+                        return { color: newColor, hue: h };
+                    }
+                    
+                    at++;
+                }
+            }
+            
+            let liR = geRC('light', null, []);
+            let rC1 = liR.color;
+            let miR = geRC('mid', liR.hue, [rC1]);
+            let rC2 = miR.color;
+            let rC3 = geRC('dark', null, [rC1, rC2]).color;
+            
+            let baC = [
+                [0.05, 0.05, 0.05, 1.0],
+                [0.90, 0.87, 0.82, 1.0]
+            ];
+            
+            let sBaC = baC[R.D() < 0.6 ? 0 : 1];
+            let liBc = sBaC[0] > 0.5;
+            
+            // Reset region allocation method and grid size
+            regionAllocationMethod = selectWeightedMethod();
+            gridRegionSize = selectWeightedGridSize();
+            
+            // Update uniforms
+            tS.setUniform('u_nS', nS);
+            tS.setUniform('u_rSS', rSS);
+            tS.setUniform('u_roA', radians(roA));
+            tS.setUniform('u_nOS', [nOX, nOY]);
+            tS.setUniform('u_amplitude', raA);
+            tS.setUniform('u_initialFreq', seF);
+            tS.setUniform('u_baseModulation', baM);
+            tS.setUniform('u_baseColor', sBaC);
+            tS.setUniform('u_isLightBackground', liBc);
+            tS.setUniform('u_useMutedColors', useMutedColors);
+            tS.setUniform('u_randomColor1', rC1);
+            tS.setUniform('u_randomColor2', rC2);
+            tS.setUniform('u_randomColor3', rC3);
+            tS.setUniform('u_currentPattern', cuP);
+            
+            let cASV = R.N(1.5, 3.0);
+            tS.setUniform('u_caScaleVariation', cASV);
+            
+            // Reset mouse points
+            persistentMousePoints = [];
+            trailPoints = [];
+            
+            // Redraw
+            requestAnimationFrame(draw);
+        }
+
         function suEH() {
            
             const canvas = document.querySelector('canvas');
@@ -1267,6 +1468,13 @@ mediump float simplexNoise(mediump vec2 v, float time) {
                 
                 if (keyState.has(e.key)) return;
                 keyState.add(e.key);
+                
+                // Handle spacebar separately to prevent page scroll
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                    resetIteration();
+                    return;
+                }
                 
                 switch(e.key.toLowerCase()) {
                     case 'a':
